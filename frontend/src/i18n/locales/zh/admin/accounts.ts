@@ -734,6 +734,9 @@ export default {
       openai: {
         baseUrlHint: '留空使用官方 OpenAI API',
         apiKeyHint: '您的 OpenAI API Key',
+        subscriptionPriority: '参与订阅优先调度',
+        subscriptionPriorityDesc:
+          '需开启全局订阅优先。对账号所属的所有分组生效，进入优先池；优先级在池内比较，负载和并发限制不变。API 地址与密钥不变。',
         oauthPassthrough: '自动透传（仅替换认证）',
         oauthPassthroughDesc:
           '开启后，该 OpenAI 账号将自动透传请求与响应，仅替换认证并保留计费/并发/审计及必要安全过滤；如遇兼容性问题可随时关闭回滚。',

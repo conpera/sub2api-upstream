@@ -1223,3 +1223,36 @@ func TestBuildSchedulerMetadataAccount_KeepsRPMFieldsForRPMGate(t *testing.T) {
 			"投影裁掉 rpm_strategy 会让粘性豁免账号退回三区判定")
 	})
 }
+
+func TestSchedulerCacheSubscriptionPriorityOptInUpdatesSnapshot(t *testing.T) {
+	ctx := context.Background()
+	cache := newSchedulerCacheUnit(t)
+	bucket := service.SchedulerBucket{GroupID: 51, Platform: service.PlatformOpenAI, Mode: service.SchedulerModeSingle}
+	account := service.Account{
+		ID: 9051, Platform: service.PlatformOpenAI, Type: service.AccountTypeAPIKey,
+		Status: service.StatusActive, Schedulable: true,
+		Extra: map[string]any{"openai_subscription_priority_enabled": true},
+	}
+	token, err := cache.CaptureBucketWriteToken(ctx, bucket)
+	require.NoError(t, err)
+	require.NoError(t, cache.SetSnapshot(ctx, bucket, token, []service.Account{account}))
+	snapshot, hit, err := cache.GetSnapshot(ctx, bucket)
+	require.NoError(t, err)
+	require.True(t, hit)
+	require.Len(t, snapshot, 1)
+	require.Equal(t, true, snapshot[0].Extra["openai_subscription_priority_enabled"])
+
+	// An admin disabling the switch must update the metadata used for selection.
+	account.Extra["openai_subscription_priority_enabled"] = false
+	require.True(t, shouldEnqueueSchedulerOutboxForExtraUpdates(account.Extra))
+	require.NoError(t, cache.SetAccount(ctx, &account))
+	snapshot, hit, err = cache.GetSnapshot(ctx, bucket)
+	require.NoError(t, err)
+	require.True(t, hit)
+	require.Len(t, snapshot, 1)
+	require.Equal(t, false, snapshot[0].Extra["openai_subscription_priority_enabled"])
+	full, err := cache.GetAccount(ctx, account.ID)
+	require.NoError(t, err)
+	require.NotNil(t, full)
+	require.Equal(t, false, full.Extra["openai_subscription_priority_enabled"])
+}
