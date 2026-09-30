@@ -616,6 +616,9 @@ export default {
       openai: {
         baseUrlHint: 'Leave default for official OpenAI API',
         apiKeyHint: 'Your OpenAI API Key',
+        subscriptionPriority: 'Include in subscription priority',
+        subscriptionPriorityDesc:
+          'With global subscription priority on, this account joins the priority pool in every group it belongs to. Priority is compared within that pool. Load, concurrency, API URL and key are unchanged.',
         oauthPassthrough: 'Auto passthrough (auth only)',
         oauthPassthroughDesc:
           'When enabled, this OpenAI account uses automatic passthrough: the gateway forwards request/response as-is and only swaps auth, while keeping billing/concurrency/audit and necessary safety filtering.',

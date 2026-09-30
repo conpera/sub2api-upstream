@@ -214,6 +214,107 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
 
   afterEach(() => vi.useRealTimers())
 
+
+  describe('OpenAI subscription priority', () => {
+    const toggleSelector = '[data-testid="openai-subscription-priority-toggle"]'
+
+    async function openAPIKeyForm() {
+      const wrapper = mountModal()
+      await selectButtonByText(wrapper, 'OpenAI')
+      await selectButtonByText(wrapper, 'API Key')
+      await wrapper.get('form#create-account-form input[type="text"]').setValue('priority API account')
+      await wrapper.get('input[placeholder="https://api.openai.com"]').setValue('https://relay.example/v1')
+      await wrapper.get('form#create-account-form input[type="password"]').setValue('sk-priority-test')
+      return wrapper
+    }
+
+    it.each([
+      { label: 'defaults off', clicks: 0, enabled: false },
+      { label: 'can be enabled', clicks: 1, enabled: true },
+      { label: 'can be turned off again', clicks: 2, enabled: false },
+    ])('$label and saves a boolean without changing API credentials', async ({ clicks, enabled }) => {
+      const wrapper = await openAPIKeyForm()
+      const toggle = wrapper.get(toggleSelector)
+      expect(toggle.attributes('role')).toBe('switch')
+      expect(toggle.attributes('aria-checked')).toBe('false')
+      for (let click = 0; click < clicks; click += 1) {
+        await toggle.trigger('click')
+      }
+      expect(toggle.attributes('aria-checked')).toBe(String(enabled))
+      await wrapper.get('[data-testid="upstream-request-id-header"]').setValue('X-Request-ID')
+      await wrapper.get('[data-testid="openai-long-context-billing-toggle"]').trigger('click')
+      await wrapper.get('form#create-account-form').trigger('submit.prevent')
+      await flushPromises()
+
+      expect(createAccountMock).toHaveBeenCalledTimes(1)
+      expect(createAccountMock.mock.calls[0]?.[0]).toMatchObject({
+        platform: 'openai',
+        type: 'apikey',
+        credentials: { base_url: 'https://relay.example/v1', api_key: 'sk-priority-test' },
+        extra: {
+          openai_subscription_priority_enabled: enabled,
+          openai_long_context_billing_enabled: true,
+          upstream_request_id_header: 'X-Request-ID',
+        },
+      })
+      wrapper.unmount()
+    })
+
+    it.each(['reopen', 'account type', 'platform'])('resets after changing %s', async (change) => {
+      const wrapper = await openAPIKeyForm()
+      await wrapper.get(toggleSelector).trigger('click')
+      expect(wrapper.get(toggleSelector).attributes('aria-checked')).toBe('true')
+
+      if (change === 'reopen') {
+        await wrapper.setProps({ show: false })
+        await wrapper.setProps({ show: true })
+        await selectButtonByText(wrapper, 'OpenAI')
+        await selectButtonByText(wrapper, 'API Key')
+      } else if (change === 'account type') {
+        await selectButtonByText(wrapper, 'OAuth')
+        expect(wrapper.find(toggleSelector).exists()).toBe(false)
+        await selectButtonByText(wrapper, 'API Key')
+      } else {
+        await selectButtonByText(wrapper, 'Anthropic')
+        expect(wrapper.find(toggleSelector).exists()).toBe(false)
+        await selectButtonByText(wrapper, 'OpenAI')
+      }
+
+      expect(wrapper.get(toggleSelector).attributes('aria-checked')).toBe('false')
+      wrapper.unmount()
+    })
+
+    it('is absent from OAuth creation and does not enter its import payload', async () => {
+      const wrapper = await openAPIKeyForm()
+      await wrapper.get(toggleSelector).trigger('click')
+      await selectButtonByText(wrapper, 'OAuth')
+      expect(wrapper.find(toggleSelector).exists()).toBe(false)
+      await wrapper.get('form#create-account-form').trigger('submit.prevent')
+      await wrapper.get('[data-testid="import-codex-pat"]').trigger('click')
+      await flushPromises()
+
+      expect(createOpenAICodexPATMock).toHaveBeenCalledTimes(1)
+      expect(createOpenAICodexPATMock.mock.calls[0]?.[0]?.extra ?? {})
+        .not.toHaveProperty('openai_subscription_priority_enabled')
+      wrapper.unmount()
+    })
+
+    it('is absent from other API platforms and does not enter their payloads', async () => {
+      const wrapper = await openAPIKeyForm()
+      await wrapper.get(toggleSelector).trigger('click')
+      await selectButtonByText(wrapper, 'Anthropic')
+      expect(wrapper.find(toggleSelector).exists()).toBe(false)
+      await wrapper.get('form#create-account-form').trigger('submit.prevent')
+      await flushPromises()
+
+      expect(createAccountMock).toHaveBeenCalledTimes(1)
+      expect(createAccountMock.mock.calls[0]?.[0]).toMatchObject({ platform: 'anthropic', type: 'apikey' })
+      expect(createAccountMock.mock.calls[0]?.[0]?.extra ?? {})
+        .not.toHaveProperty('openai_subscription_priority_enabled')
+      wrapper.unmount()
+    })
+  })
+
   it('sets month and year expiry presets without submitting the account form', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-01-31T12:34:00'))

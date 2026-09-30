@@ -1494,7 +1494,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 	}
 
 	if req.SubscriptionPriority {
-		subscriptionAccounts, regularAccounts := partitionOpenAIChatGPTSubscriptionAccounts(filtered)
+		subscriptionAccounts, regularAccounts := partitionOpenAISubscriptionPriorityAccounts(filtered)
 		if len(subscriptionAccounts) > 0 {
 			attempt := s.trySelectByLoadBalancePool(ctx, req, subscriptionAccounts, loadMap, budget)
 			if attempt.err != nil && (!attempt.noCompactCandidates || len(regularAccounts) <= 0) {
@@ -1543,11 +1543,11 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 	return s.finishLoadBalanceSelectionFallback(ctx, req, attempt, budget, filterStats)
 }
 
-func partitionOpenAIChatGPTSubscriptionAccounts(accounts []*Account) ([]*Account, []*Account) {
+func partitionOpenAISubscriptionPriorityAccounts(accounts []*Account) ([]*Account, []*Account) {
 	subscriptionAccounts := make([]*Account, 0, len(accounts))
 	regularAccounts := make([]*Account, 0, len(accounts))
 	for _, account := range accounts {
-		if account != nil && account.IsOpenAIChatGPTSubscription() {
+		if account != nil && (account.IsOpenAIChatGPTSubscription() || account.OpenAISubscriptionPriorityEnabled()) {
 			subscriptionAccounts = append(subscriptionAccounts, account)
 			continue
 		}

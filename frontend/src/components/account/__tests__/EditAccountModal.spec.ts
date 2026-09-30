@@ -331,6 +331,98 @@ describe('EditAccountModal', () => {
 
   afterEach(() => vi.useRealTimers())
 
+
+  describe('OpenAI subscription priority', () => {
+    const toggleSelector = '[data-testid="openai-subscription-priority-toggle"]'
+
+    beforeEach(() => {
+      updateAccountMock.mockReset().mockResolvedValue(buildAccount())
+      checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
+    })
+
+    it.each([undefined, false, 'true', 'false', 1])('defaults to off for saved value %s and saves false', async (savedValue) => {
+      const account = buildAccount()
+      if (savedValue !== undefined) {
+        account.extra.openai_subscription_priority_enabled = savedValue
+      }
+      const wrapper = mountModal(account)
+      const toggle = wrapper.get(toggleSelector)
+      expect(toggle.attributes('role')).toBe('switch')
+      expect(toggle.attributes('aria-checked')).toBe('false')
+      await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+      expect(updateAccountMock).toHaveBeenCalledTimes(1)
+      expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_subscription_priority_enabled).toBe(false)
+      wrapper.unmount()
+    })
+
+    it.each([
+      { saved: false, clicks: 1, enabled: true },
+      { saved: true, clicks: 0, enabled: true },
+      { saved: true, clicks: 1, enabled: false },
+    ])('loads $saved and saves $enabled while preserving API credentials and unrelated extra', async ({ saved, clicks, enabled }) => {
+      const account = buildAccount()
+      account.credentials.base_url = 'https://relay.example/v1'
+      account.extra = {
+        openai_subscription_priority_enabled: saved,
+        openai_long_context_billing_enabled: true,
+        upstream_request_id_header: 'X-Request-ID',
+        custom_metadata: { region: 'test' },
+        quota_limit: 100,
+      }
+      const originalCredentials = { ...account.credentials }
+      const wrapper = mountModal(account)
+      const toggle = wrapper.get(toggleSelector)
+      expect(toggle.attributes('aria-checked')).toBe(String(saved))
+      for (let click = 0; click < clicks; click += 1) {
+        await toggle.trigger('click')
+      }
+      expect(toggle.attributes('aria-checked')).toBe(String(enabled))
+      await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+      expect(updateAccountMock).toHaveBeenCalledTimes(1)
+      const [accountId, payload] = updateAccountMock.mock.calls[0]!
+      expect(accountId).toBe(account.id)
+      expect(payload.credentials).toMatchObject(originalCredentials)
+      expect(payload).not.toHaveProperty('type')
+      expect(payload).not.toHaveProperty('platform')
+      expect(payload.extra).toMatchObject({ ...account.extra, openai_subscription_priority_enabled: enabled })
+      expect(account.type).toBe('apikey')
+      expect(account.credentials).toEqual(originalCredentials)
+      wrapper.unmount()
+    })
+
+    it('reloads the saved value when reopened or switched to another account', async () => {
+      const account = buildAccount()
+      account.extra = { openai_subscription_priority_enabled: true }
+      const wrapper = mountModal(account)
+      await wrapper.get(toggleSelector).trigger('click')
+      await wrapper.setProps({ show: false })
+      await wrapper.setProps({ show: true })
+      expect(wrapper.get(toggleSelector).attributes('aria-checked')).toBe('true')
+      await wrapper.setProps({ account: { ...buildAccount(), id: 99 } })
+      expect(wrapper.get(toggleSelector).attributes('aria-checked')).toBe('false')
+      wrapper.unmount()
+    })
+
+    it.each([
+      { platform: 'openai', type: 'oauth' },
+      { platform: 'openai', type: 'setup-token' },
+      { platform: 'anthropic', type: 'apikey' },
+      { platform: 'gemini', type: 'apikey' },
+    ])('is absent for $platform $type and does not enter its save payload', async ({ platform, type }) => {
+      const account = { ...buildAccount(), platform, type }
+      const wrapper = mountModal(account)
+      expect(wrapper.find(toggleSelector).exists()).toBe(false)
+      await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+      expect(updateAccountMock).toHaveBeenCalledTimes(1)
+      expect(updateAccountMock.mock.calls[0]?.[1]?.extra ?? {})
+        .not.toHaveProperty('openai_subscription_priority_enabled')
+      wrapper.unmount()
+    })
+  })
+
   it('passes existing non-identity mappings to the whitelist selector and preserves them on save', async () => {
     const account = buildAccount()
     account.credentials.model_mapping = { 'gpt-5.2': 'gpt-5.2', 'gpt-latest': 'deepseek-chat' }

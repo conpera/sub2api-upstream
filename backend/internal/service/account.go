@@ -88,6 +88,9 @@ type OpenAIEndpointCapability string
 
 const openAILongContextBillingEnabledKey = "openai_long_context_billing_enabled"
 
+// OpenAISubscriptionPriorityEnabledExtraKey opts API key accounts into the subscription scheduling pool.
+const OpenAISubscriptionPriorityEnabledExtraKey = "openai_subscription_priority_enabled"
+
 const (
 	OpenAIEndpointCapabilityChatCompletions OpenAIEndpointCapability = "chat_completions"
 	OpenAIEndpointCapabilityEmbeddings      OpenAIEndpointCapability = "embeddings"
@@ -1335,6 +1338,15 @@ func (a *Account) IsOpenAIChatGPTSubscription() bool {
 	default:
 		return true
 	}
+}
+
+// OpenAISubscriptionPriorityEnabled only changes API key scheduling eligibility;
+// it does not make the account a ChatGPT subscription or change its transport.
+func (a *Account) OpenAISubscriptionPriorityEnabled() bool {
+	if a == nil || !a.IsOpenAIApiKey() {
+		return false
+	}
+	return a.getExtraBool(OpenAISubscriptionPriorityEnabledExtraKey)
 }
 
 func (a *Account) IsOpenAIPersonalAccessToken() bool {
