@@ -14,6 +14,7 @@ import {
 } from './adminUIRequest'
 import { refreshAuthTokens } from './tokenRefresh'
 import { getAPIBaseURL } from './url'
+import { unifiedSessionEnabled } from '@/utils/unifiedSession'
 export { buildApiUrl, buildGatewayUrl } from './url'
 
 // ==================== Axios Instance Configuration ====================
@@ -42,7 +43,9 @@ apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     // Attach token from localStorage
     const token = localStorage.getItem('auth_token')
-    if (token && config.headers) {
+    if (unifiedSessionEnabled && config.headers) {
+      delete config.headers.Authorization
+    } else if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`
     }
 

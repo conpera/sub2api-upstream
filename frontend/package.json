@@ -13,7 +13,9 @@
     "typecheck": "vue-tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "build:session": "node scripts/build-session.mjs",
+    "check:session-build": "node scripts/check-session-build.mjs"
   },
   "dependencies": {
     "@airwallex/components-sdk": "^1.30.2",

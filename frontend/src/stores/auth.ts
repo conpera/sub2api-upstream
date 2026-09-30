@@ -1,3 +1,4 @@
+import { unifiedSessionEnabled, COOKIE_SESSION_MARKER } from '@/utils/unifiedSession'
 /**
  * Authentication Store
  * Manages user authentication state, login/logout, token refresh, and token persistence
@@ -355,6 +356,7 @@ export const useAuthStore = defineStore('auth', () => {
    * @param newToken - 后端签发的 JWT access token
    */
   async function setToken(newToken: string): Promise<User> {
+    if (unifiedSessionEnabled) newToken = COOKIE_SESSION_MARKER
     // Clear any previous state first (avoid mixing sessions)
     // Note: Don't clear localStorage here as OAuth callback may have set refresh_token
     stopAutoRefresh()
@@ -414,6 +416,11 @@ export const useAuthStore = defineStore('auth', () => {
    * Clears all authentication state and persisted data
    */
   async function logout(): Promise<void> {
+    if (unifiedSessionEnabled) {
+      await authAPI.logout()
+      clearAuth()
+      return
+    }
     try {
       // Call API logout (revokes refresh token on server)
       await authAPI.logout()

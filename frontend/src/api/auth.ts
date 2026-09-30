@@ -4,6 +4,7 @@
  */
 
 import { apiClient } from './client'
+import { unifiedSessionEnabled, COOKIE_SESSION_MARKER, logoutUnifiedSession } from '@/utils/unifiedSession'
 import { refreshAuthTokens, type RefreshTokenResponse } from './tokenRefresh'
 export type { RefreshTokenResponse } from './tokenRefresh'
 import type {
@@ -72,13 +73,14 @@ export function isTotp2FARequired(response: LoginResponse): response is TotpLogi
  * Store authentication token in localStorage
  */
 export function setAuthToken(token: string): void {
-  localStorage.setItem('auth_token', token)
+  localStorage.setItem('auth_token', unifiedSessionEnabled ? COOKIE_SESSION_MARKER : token)
 }
 
 /**
  * Store refresh token in localStorage
  */
 export function setRefreshToken(token: string): void {
+  if (unifiedSessionEnabled) return
   localStorage.setItem('refresh_token', token)
 }
 
@@ -87,6 +89,7 @@ export function setRefreshToken(token: string): void {
  * Converts expires_in (seconds) to absolute timestamp (milliseconds)
  */
 export function setTokenExpiresAt(expiresIn: number): void {
+  if (unifiedSessionEnabled) return
   const expiresAt = Date.now() + expiresIn * 1000
   localStorage.setItem('token_expires_at', String(expiresAt))
 }
@@ -202,6 +205,11 @@ export async function getCurrentUser() {
  * Optionally revokes the refresh token on the server
  */
 export async function logout(): Promise<void> {
+  if (unifiedSessionEnabled) {
+    await logoutUnifiedSession()
+    clearAuthToken()
+    return
+  }
   const refreshToken = getRefreshToken()
 
   // Try to revoke the refresh token on the server

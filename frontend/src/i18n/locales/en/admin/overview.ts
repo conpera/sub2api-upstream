@@ -494,6 +494,7 @@ export default {
 
     // Users
     users: {
+      twoBalance: {"title": "Monthly / PAYGO", "monthly": "Monthly balance", "expires": "Expires {date}", "noCard": "No active monthly card", "permanent": "No expiry", "total": "Total available", "reserved": "Pending tasks reserve {amount}; available balances already exclude it.", "request": "Request / time", "empty": "No settled two-balance consumption yet.", "more": "Load more", "refresh": "Refresh"},
       title: 'User Management',
       description: 'Manage users and their permissions',
       createUser: 'Create User',

@@ -6,6 +6,8 @@ import i18n, { initI18n } from './i18n'
 import { useAppStore } from '@/stores/app'
 import { updateFavicon } from '@/utils/branding'
 import { isIOSDevice } from '@/utils/device'
+import { startBrowserSessionActivity } from '@/utils/browserActivity'
+import { initializeUnifiedSession, unifiedSessionEnabled, startUnifiedSessionActivity } from '@/utils/unifiedSession'
 import './style.css'
 
 function initIOSViewportZoomFix() {
@@ -31,6 +33,7 @@ function initThemeClass() {
 }
 
 async function bootstrap() {
+  if (!await initializeUnifiedSession()) return
   // Apply theme class globally before app mount to keep all routes consistent.
   initThemeClass()
   initIOSViewportZoomFix()
@@ -58,6 +61,8 @@ async function bootstrap() {
   // 等待路由器完成初始导航后再挂载，避免竞态条件导致的空白渲染
   await router.isReady()
   app.mount('#app')
+  if (unifiedSessionEnabled) startUnifiedSessionActivity()
+  else startBrowserSessionActivity()
 }
 
 bootstrap()

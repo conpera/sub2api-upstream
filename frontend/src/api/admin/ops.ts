@@ -1,3 +1,4 @@
+import { unifiedSessionEnabled } from '@/utils/unifiedSession'
 /**
  * Admin Ops API endpoints (vNext)
  * - Error logs list/detail
@@ -604,7 +605,7 @@ export function subscribeQPS(onMessage: (data: any) => void, options: SubscribeQ
     // Sec-WebSocket-Protocol (subprotocol list): ["sub2api-admin", "jwt.<token>"].
     const rawToken = String(options.token ?? localStorage.getItem('auth_token') ?? '').trim()
     const protocols: string[] = [OPS_WS_BASE_PROTOCOL]
-    if (rawToken) protocols.push(`jwt.${rawToken}`)
+    if (rawToken && !unifiedSessionEnabled) protocols.push(`jwt.${rawToken}`)
 
     ws = new WebSocket(wsURL.toString(), protocols)
 

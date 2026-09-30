@@ -494,6 +494,7 @@ export default {
 
     // Users Management
     users: {
+      twoBalance: {"title": "月卡 / PAYGO", "monthly": "月卡余额", "expires": "到期时间：{date}", "noCard": "暂无有效月卡", "permanent": "长期有效", "total": "总可用余额", "reserved": "进行中的任务预留 {amount}，以上可用余额已扣除预留。", "request": "请求 / 时间", "empty": "暂无双余额扣费记录。", "more": "加载更多", "refresh": "刷新"},
       title: '用户管理',
       description: '管理用户账户和权限',
       createUser: '创建用户',
