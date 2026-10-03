@@ -213,10 +213,26 @@ security:
     allow_direct_on_error: false
 
 # =============================================================================
+# Per-process Channel Monitor Startup
+# 本进程渠道监控启动配置
+# =============================================================================
+channel_monitor:
+  # Start automatic V1 probes in this process (default true).
+  # Set CHANNEL_MONITOR_ACTIVE_PROBES_ENABLED=false for an overlapping candidate.
+  # Manual checks and shared feature settings are unaffected.
+  # 仅控制本进程自动探测；手动检测及数据库中的全局设置不受影响。
+  active_probes_enabled: true
+
+# =============================================================================
 # Gateway Configuration
 # 网关配置
 # =============================================================================
 gateway:
+  # Retain other processes' slots and waiting counts during startup (default false).
+  # Set GATEWAY_PRESERVE_CONCURRENCY_SLOTS_ON_STARTUP=true before starting an
+  # overlapping candidate. Timestamp-based expiry cleanup remains enabled.
+  # 候选进程重叠运行时保留旧进程的并发槽位和等待计数；仍按时间清理过期记录。
+  preserve_concurrency_slots_on_startup: false
   # Timeout for waiting upstream response headers (seconds)
   # 等待上游响应头超时时间（秒）
   response_header_timeout: 600
