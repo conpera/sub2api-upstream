@@ -96,6 +96,7 @@ type Config struct {
 	DashboardAgg            DashboardAggregationConfig    `mapstructure:"dashboard_aggregation"`
 	UsageCleanup            UsageCleanupConfig            `mapstructure:"usage_cleanup"`
 	Concurrency             ConcurrencyConfig             `mapstructure:"concurrency"`
+	ChannelMonitor          ChannelMonitorConfig          `mapstructure:"channel_monitor"`
 	TokenRefresh            TokenRefreshConfig            `mapstructure:"token_refresh"`
 	SimpleMode              SimpleModeConfig              `mapstructure:"simple_mode" yaml:"simple_mode"`
 	RunMode                 string                        `mapstructure:"run_mode" yaml:"run_mode"`
@@ -977,8 +978,17 @@ const (
 	ImageConcurrencyOverflowModeWait   = "wait"
 )
 
+// ChannelMonitorConfig controls automatic active probes in this process.
+// Shared feature settings and manual checks are unaffected.
+type ChannelMonitorConfig struct {
+	ActiveProbesEnabled bool `mapstructure:"active_probes_enabled"`
+}
+
 // GatewayConfig API网关相关配置
 type GatewayConfig struct {
+	// PreserveConcurrencySlotsOnStartup skips process-prefix cleanup during overlap.
+	// Timestamp-based expiry remains enabled. The default is false.
+	PreserveConcurrencySlotsOnStartup bool `mapstructure:"preserve_concurrency_slots_on_startup"`
 	// 等待上游响应头的超时时间（秒），0表示无超时
 	// 注意：这不影响流式数据传输，只控制等待响应头的时间
 	ResponseHeaderTimeout int `mapstructure:"response_header_timeout"`
@@ -2416,6 +2426,8 @@ func setDefaults() {
 	viper.SetDefault("idempotency.cleanup_batch_size", 500)
 
 	// Gateway
+	viper.SetDefault("channel_monitor.active_probes_enabled", true)
+	viper.SetDefault("gateway.preserve_concurrency_slots_on_startup", false)
 	viper.SetDefault("gateway.response_header_timeout", 600) // 600秒(10分钟)等待上游响应头，LLM高负载时可能排队较久
 	viper.SetDefault("gateway.openai_response_header_timeout", 0)
 	viper.SetDefault("gateway.grok_response_header_timeout", 120)
