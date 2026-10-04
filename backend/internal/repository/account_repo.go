@@ -1951,6 +1951,12 @@ func (r *accountRepository) BindGroups(ctx context.Context, accountID int64, gro
 		return err
 	}
 
+	// Group-only changes also advance and lock the account generation. Conditional
+	// account actions must not accept a snapshot predating an in-flight rebind.
+	if err := txClient.Account.UpdateOneID(accountID).SetUpdatedAt(time.Now()).Exec(ctx); err != nil {
+		return err
+	}
+
 	if _, err := txClient.AccountGroup.Delete().Where(dbaccountgroup.AccountIDEQ(accountID)).Exec(ctx); err != nil {
 		return err
 	}
