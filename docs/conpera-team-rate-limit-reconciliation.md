@@ -1,0 +1,13 @@
+# Team global rate-limit reconciliation
+
+An old account-level rate-limit marker may outlive the upstream quota limit. The workbench verifies fresh quota and its account/lease policy before requesting `POST /api/v1/admin/accounts/:id/clear-global-rate-limit-if-unchanged` through existing admin authentication.
+
+The body requires `expected_updated_at`, `expected_rate_limited_at`, `expected_rate_limit_reset_at`, `expected_token_sha256`, `expected_status`, `expected_schedulable`, `expected_proxy_id` (0 means unbound), and `expected_group_ids` (an array). The fingerprint is SHA-256 of the JSON array `[access_token, refresh_token, id_token]`, substituting an empty string for absent tokens. These expectations must describe the account used for the quota verification. Missing guards return 400; changed state returns 409; a successful conditional clear returns `{ "cleared": true }` inside the normal response envelope.
+
+The service verifies identity-bearing credentials and the account generation; one SQL statement compares the full observed credentials/extra, version, global markers, proxy, status, scheduling, expiry, other restriction fields and groups, then clears only `rate_limited_at` and `rate_limit_reset_at`. Its scheduler-outbox insert is atomic with that update. Group binding advances and locks the account version in the same transaction so an overlapping conditional clear cannot accept the previous membership generation.
+
+The broad operator clear action is unchanged. No model, temporary, overload, auth or credit state is cleared, and no scheduling or IP binding is enabled. Existing gateway logic retires an obsolete in-memory account block only when persisted cooldowns are absent, using its generation/deadline comparison. Callers must read back uncertain responses and must not fall back to the broad endpoint.
+
+Validation covers service/HTTP contracts, token and policy changes, equal-reset re-arming, preservation of unrelated restrictions, outbox rollback, and a real two-connection group mutation overlapping the clear. Run `go test -tags=unit ./internal/service ./internal/handler/admin -run 'TestConditionalGlobalClear|TestRateLimitService_ClearRateLimit'` and `go test -tags=integration ./internal/repository` from backend.
+
+This patch is based on the production source lineage `conpera/sub2api-upstream` branch `conpera/production`, base cdb9430bdc5acf541d4ab8dfa550cfcc842f49f2. Source merge is separate from runtime release. A native binary candidate preserves that source lineage and frontend assets; no image/container recreation or schema migration is required. A concrete binary hash, brief process restart impact, current-runtime preflight and program-only rollback must be approved before release.
