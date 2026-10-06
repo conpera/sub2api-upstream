@@ -75,7 +75,7 @@ func claudeSubscriptionPrioritySettings(entry *cachedClaudeSubscriptionPriority)
 
 func (s *SettingService) loadClaudeSubscriptionPriority(ctx context.Context) *cachedClaudeSubscriptionPriority {
 	if s == nil || s.settingRepo == nil {
-		return newClaudeSubscriptionPriorityCache(nil, fmt.Errorf("Claude subscription priority settings are unavailable"))
+		return newClaudeSubscriptionPriorityCache(nil, fmt.Errorf("claude subscription priority settings are unavailable"))
 	}
 	if cached, ok := s.claudeSubscriptionPriorityCache.Load().(*cachedClaudeSubscriptionPriority); ok && cached != nil && time.Now().Before(cached.expiresAt) {
 		return cached
@@ -97,7 +97,7 @@ func (s *SettingService) loadClaudeSubscriptionPriority(ctx context.Context) *ca
 		// Missing keys default to disabled; malformed or null stored values are
 		// operational errors and must never be presented as verified disabled.
 		if !strings.HasPrefix(strings.TrimSpace(raw), "[") {
-			err = fmt.Errorf("Claude subscription priority setting must be a JSON array")
+			err = fmt.Errorf("claude subscription priority setting must be a JSON array")
 		} else if parseErr := json.Unmarshal([]byte(raw), &ids); parseErr != nil {
 			err = fmt.Errorf("decode Claude subscription priority groups: %w", parseErr)
 		}
@@ -138,7 +138,7 @@ func (s *SettingService) IsClaudeSubscriptionPriorityEnabled(ctx context.Context
 
 func (s *SettingService) UpdateClaudeSubscriptionPriority(ctx context.Context, groupIDs []int64) (*ClaudeSubscriptionPrioritySettings, error) {
 	if s == nil || s.settingRepo == nil {
-		return nil, fmt.Errorf("Claude subscription priority settings are unavailable")
+		return nil, fmt.Errorf("claude subscription priority settings are unavailable")
 	}
 	ids, err := normalizeClaudeSubscriptionPriorityGroupIDs(groupIDs)
 	if err != nil {

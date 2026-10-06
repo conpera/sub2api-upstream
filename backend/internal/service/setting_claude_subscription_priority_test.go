@@ -62,8 +62,11 @@ func newClaudePrioritySettingsService(raw string) (*SettingService, *claudePrior
 	return svc, repo
 }
 
-func expireClaudePrioritySettings(svc *SettingService) {
-	old := svc.claudeSubscriptionPriorityCache.Load().(*cachedClaudeSubscriptionPriority)
+func expireClaudePrioritySettings(t *testing.T, svc *SettingService) {
+	t.Helper()
+	old, ok := svc.claudeSubscriptionPriorityCache.Load().(*cachedClaudeSubscriptionPriority)
+	require.True(t, ok)
+	require.NotNil(t, old)
 	next := *old
 	next.expiresAt = time.Now().Add(-time.Second)
 	svc.claudeSubscriptionPriorityCache.Store(&next)
@@ -113,7 +116,7 @@ func TestClaudeSubscriptionPrioritySettings_RoundTripClearAndOnlyOneKey(t *testi
 func TestClaudeSubscriptionPrioritySettings_ReadFailureClearsExpiredEnabledState(t *testing.T) {
 	svc, repo := newClaudePrioritySettingsService("[28]")
 	require.True(t, svc.IsClaudeSubscriptionPriorityEnabled(context.Background(), 28))
-	expireClaudePrioritySettings(svc)
+	expireClaudePrioritySettings(t, svc)
 	repo.getValueErr = errors.New("isolated settings outage")
 	require.False(t, svc.IsClaudeSubscriptionPriorityEnabled(context.Background(), 28))
 	settings, err := svc.GetClaudeSubscriptionPriority(context.Background())
@@ -125,7 +128,7 @@ func TestClaudeSubscriptionPrioritySettings_ReadFailureClearsExpiredEnabledState
 	require.Equal(t, 2, repo.getValueCalls, "an outage must not query the database on every request")
 	repo.getValueErr = nil
 	repo.values[SettingKeyClaudeSubscriptionPriorityGroupIDs] = "[42]"
-	expireClaudePrioritySettings(svc)
+	expireClaudePrioritySettings(t, svc)
 	require.True(t, svc.IsClaudeSubscriptionPriorityEnabled(context.Background(), 42))
 	require.False(t, svc.IsClaudeSubscriptionPriorityEnabled(context.Background(), 28))
 }
@@ -203,11 +206,11 @@ func TestClaudeSubscriptionPrioritySettings_OtherInstanceRefreshesAfterTTL(t *te
 	_, err := first.UpdateClaudeSubscriptionPriority(context.Background(), []int64{28})
 	require.NoError(t, err)
 	require.True(t, first.IsClaudeSubscriptionPriorityEnabled(context.Background(), 28))
-	expireClaudePrioritySettings(second)
+	expireClaudePrioritySettings(t, second)
 	require.True(t, second.IsClaudeSubscriptionPriorityEnabled(context.Background(), 28))
 	_, err = first.UpdateClaudeSubscriptionPriority(context.Background(), []int64{})
 	require.NoError(t, err)
-	expireClaudePrioritySettings(second)
+	expireClaudePrioritySettings(t, second)
 	require.False(t, second.IsClaudeSubscriptionPriorityEnabled(context.Background(), 28))
 }
 
