@@ -106,7 +106,8 @@ type SettingRepository interface {
 	Delete(ctx context.Context, key string) error
 }
 
-// DefaultSubscriptionGroupReader validates group references used by default subscriptions.
+// DefaultSubscriptionGroupReader validates group references in subscription defaults
+// and explicitly scoped scheduling settings.
 type DefaultSubscriptionGroupReader interface {
 	GetByID(ctx context.Context, id int64) (*Group, error)
 }
@@ -143,6 +144,9 @@ type SettingService struct {
 	// 面板每个认证请求都会读取，禁止在热路径上直接访问 DB。
 	panelRateLimitCache atomic.Value
 	panelRateLimitSF    singleflight.Group
+
+	claudeSubscriptionPriorityMu    sync.Mutex
+	claudeSubscriptionPriorityCache atomic.Value // *cachedClaudeSubscriptionPriority
 
 	// openAIQuotaAutoPauseSettingsCache holds the most recently observed quota auto-pause
 	// settings. GetOpenAIQuotaAutoPauseSettings reads this atomic.Value on the request hot
@@ -297,7 +301,8 @@ func NewSettingService(settingRepo SettingRepository, cfg *config.Config) *Setti
 	}
 }
 
-// SetDefaultSubscriptionGroupReader injects an optional group reader for default subscription validation.
+// SetDefaultSubscriptionGroupReader injects the group reader used to validate
+// subscription defaults and explicitly scoped scheduling settings.
 func (s *SettingService) SetDefaultSubscriptionGroupReader(reader DefaultSubscriptionGroupReader) {
 	s.defaultSubGroupReader = reader
 }
