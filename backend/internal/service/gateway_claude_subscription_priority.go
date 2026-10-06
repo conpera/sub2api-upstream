@@ -42,7 +42,7 @@ func (s *GatewayService) selectClaudeSubscriptionPool(ctx context.Context, reque
 		return s.selectGatewayAccountPool(ctx, request, regular, false, true)
 	}
 	pools := [][]Account{subscriptions, regular}
-	var lastErr error = ErrNoAvailableAccounts
+	lastErr := ErrNoAvailableAccounts
 	// First exhaust immediate admission in both pools. Only then may a wait plan
 	// register a session. Speculative wait plans cannot safely be undone: another
 	// in-flight request may already own the same account/session registration.
@@ -95,7 +95,7 @@ func (s *GatewayService) selectClaudeAccountForModel(ctx context.Context, groupI
 	if groupID != nil && s.groupRepo != nil {
 		group, _ = s.groupRepo.GetByIDLite(ctx, *groupID)
 	}
-	var lastErr error = ErrNoAvailableAccounts
+	lastErr := ErrNoAvailableAccounts
 	for _, subscription := range []bool{true, false} {
 		pool := &claudeAccountSelectionPool{subscription: subscription, group: group}
 		var account *Account
