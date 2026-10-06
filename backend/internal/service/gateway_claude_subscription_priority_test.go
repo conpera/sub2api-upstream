@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -84,6 +85,9 @@ func newClaudeSubscriptionFixture(accounts ...Account) *claudeSubscriptionFixtur
 		svc: &GatewayService{
 			accountRepo: repo, groupRepo: &mockGroupRepoForGateway{groups: map[int64]*Group{group.ID: group}},
 			cache: sticky, cfg: cfg, concurrencyService: NewConcurrencyService(concurrency),
+			settingService: NewSettingService(&betaPolicySettingRepoStub{values: map[string]string{
+				SettingKeyClaudeSubscriptionPriorityGroupIDs: "[42]",
+			}}, cfg),
 		},
 	}
 }
@@ -576,4 +580,110 @@ func TestClaudeSubscriptionPriority_HydrationFailureReleasesAcquiredSlot(t *test
 	require.Nil(t, result)
 	require.Equal(t, []int64{subscription.ID}, f.concurrency.released, "hydration failure must release its reserved slot exactly once")
 	require.NotContains(t, f.concurrency.attempts, regular.ID)
+}
+
+func (f *claudeSubscriptionFixture) enableGroups(ids ...int64) {
+	raw, _ := json.Marshal(ids)
+	f.svc.settingService = NewSettingService(&betaPolicySettingRepoStub{values: map[string]string{
+		SettingKeyClaudeSubscriptionPriorityGroupIDs: string(raw),
+	}}, f.svc.cfg)
+}
+
+func TestClaudeSubscriptionPriority_OnlyEnabledRequestGroups(t *testing.T) {
+	for _, mode := range []string{"load_aware", "batch_disabled", "selection_only"} {
+		for _, enabled := range []bool{false, true} {
+			name := mode + "/disabled"
+			if enabled {
+				name = mode + "/enabled"
+			}
+			t.Run(name, func(t *testing.T) {
+				f := newClaudeSubscriptionFixture(claudeSubscriptionAccount(1, AccountTypeOAuth, 100), claudeSubscriptionAccount(2, AccountTypeAPIKey, 1))
+				f.group.Name = "name is not the scheduling identity"
+				if enabled {
+					f.enableGroups(42)
+				} else {
+					f.enableGroups(28)
+				}
+				f.sticky.sessionBindings["session"] = 2
+				f.route(2)
+				want := int64(2)
+				if enabled {
+					want = 1
+				}
+				if mode == "selection_only" {
+					account, err := f.svc.SelectAccountForModelWithExclusions(context.Background(), &f.group.ID, "session", claudeSubscriptionModel, nil)
+					require.NoError(t, err)
+					require.Equal(t, want, account.ID)
+				} else {
+					if mode == "batch_disabled" {
+						f.svc.cfg.Gateway.Scheduling.LoadBatchEnabled = false
+					}
+					result := f.selectAccount(t, "session", nil)
+					require.Equal(t, want, result.Account.ID)
+				}
+			})
+		}
+	}
+}
+
+func TestClaudeSubscriptionPriority_FollowsFallbackGroupScope(t *testing.T) {
+	for _, selectionOnly := range []bool{false, true} {
+		for _, enableFallback := range []bool{false, true} {
+			name := "load_aware/source_enabled"
+			if selectionOnly {
+				name = "selection_only/source_enabled"
+			}
+			if enableFallback {
+				name += "/fallback_enabled"
+			}
+			t.Run(name, func(t *testing.T) {
+				f := newClaudeSubscriptionFixture(claudeSubscriptionAccount(1, AccountTypeOAuth, 100), claudeSubscriptionAccount(2, AccountTypeAPIKey, 1))
+				fallbackID := int64(24)
+				f.group.ClaudeCodeOnly = true
+				f.group.FallbackGroupID = &fallbackID
+				fallback := &Group{ID: fallbackID, Platform: PlatformAnthropic, Status: StatusActive, Hydrated: true}
+				f.svc.groupRepo = &mockGroupRepoForGateway{groups: map[int64]*Group{f.group.ID: f.group, fallbackID: fallback}}
+				for i := range f.repo.accounts {
+					f.repo.accounts[i].AccountGroups = append(f.repo.accounts[i].AccountGroups, AccountGroup{GroupID: fallbackID})
+				}
+				want := int64(2)
+				if enableFallback {
+					f.enableGroups(fallbackID)
+					want = 1
+				} else {
+					f.enableGroups(f.group.ID)
+				}
+				if selectionOnly {
+					account, err := f.svc.SelectAccountForModelWithExclusions(context.Background(), &f.group.ID, "", claudeSubscriptionModel, nil)
+					require.NoError(t, err)
+					require.Equal(t, want, account.ID)
+				} else {
+					result := f.selectAccount(t, "", nil)
+					require.Equal(t, want, result.Account.ID)
+				}
+			})
+		}
+	}
+}
+
+func TestClaudeSubscriptionPriority_DefaultOff(t *testing.T) {
+	for _, mode := range []string{"missing_service", "missing_setting", "invalid_setting", "no_group"} {
+		t.Run(mode, func(t *testing.T) {
+			f := newClaudeSubscriptionFixture(claudeSubscriptionAccount(1, AccountTypeOAuth, 100), claudeSubscriptionAccount(2, AccountTypeAPIKey, 1))
+			groupID := &f.group.ID
+			switch mode {
+			case "missing_service":
+				f.svc.settingService = nil
+			case "missing_setting":
+				f.svc.settingService = NewSettingService(&betaPolicySettingRepoStub{}, f.svc.cfg)
+			case "invalid_setting":
+				f.svc.settingService = NewSettingService(&betaPolicySettingRepoStub{values: map[string]string{SettingKeyClaudeSubscriptionPriorityGroupIDs: "invalid"}}, f.svc.cfg)
+			case "no_group":
+				groupID = nil
+			}
+			account, err := f.svc.SelectAccountForModelWithExclusions(context.Background(), groupID, "", claudeSubscriptionModel, nil)
+			require.NoError(t, err)
+			require.Equal(t, int64(2), account.ID)
+		})
+	}
 }

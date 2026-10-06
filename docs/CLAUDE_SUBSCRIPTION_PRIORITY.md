@@ -1,16 +1,47 @@
 # Claude subscription pool priority
 
-For requests whose resolved target platform is Anthropic, scheduling first tries
-Anthropic OAuth and Setup Token accounts. API keys and eligible mixed-platform
+For opted-in request groups whose resolved target platform is Anthropic,
+scheduling first tries Anthropic OAuth and Setup Token accounts. API keys and eligible mixed-platform
 accounts form the fallback pool. Account names, numerical priorities, and model
 names do not determine pool membership.
 
-The change is enabled by the backend implementation; no account edits or schema
-migration are needed. Other target platforms retain their existing scheduler.
+The policy defaults to disabled. Enable it for explicit group IDs using the
+admin settings API below; no account edits or schema migration are needed.
+Other groups and target platforms retain their existing scheduler. Shared
+accounts do not transfer the policy to their other groups. After Claude Code
+fallback, selection uses the destination group's policy.
 Existing account priority settings cannot enforce this across model routes and
 sticky bindings. A frontend or external proxy cannot atomically acquire the
 scheduler's account slots; the exception is therefore scoped to selection inside
 the existing gateway, with its eligibility and billing lifecycle preserved.
+
+## Runtime configuration and display
+
+`GET /api/v1/admin/settings/claude-subscription-priority` returns the runtime
+settings shared with the scheduler. The standard response envelope contains:
+
+```json
+{
+  "supported": true,
+  "strategy": "subscription_first",
+  "enabled_group_ids": [],
+  "subscription_account_types": ["oauth", "setup-token"]
+}
+```
+
+`PUT` on the same admin-only endpoint requires an explicit `enabled_group_ids`
+array. Empty `[]` disables the policy everywhere. Positive IDs are deduplicated,
+sorted and validated against active Anthropic/Composite groups. Only the
+`claude_subscription_priority_group_ids` settings key is updated. Successful
+writes update the local immutable cache immediately; other processes observe
+changes within its five-second TTL. An expired read failure disables the new
+selection behavior and is returned as an error by the status endpoint.
+
+The initial requested production scope is Fable group 28, not an account list or
+Channel entity. The monitor at `/account-monitor/claude` reads this endpoint and
+maps the enabled IDs to group names and per-account pool labels. Missing API
+support or a failed status read must display unconfirmed status, never enabled.
+The monitor implementation and deployment belong to `sub2api-oauth-checker`.
 
 ## Selection order
 

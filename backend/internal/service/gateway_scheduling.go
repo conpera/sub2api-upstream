@@ -74,7 +74,7 @@ func (s *GatewayService) SelectAccountForModelWithExclusions(ctx context.Context
 		return nil, fmt.Errorf("%w supporting model: %s (channel pricing restriction)", ErrNoAvailableAccounts, requestedModel)
 	}
 
-	if platform == PlatformAnthropic {
+	if platform == PlatformAnthropic && s.isClaudeSubscriptionPriorityEnabled(ctx, groupID) {
 		return s.selectClaudeAccountForModel(ctx, groupID, sessionHash, requestedModel, excludedIDs, hasForcePlatform && forcePlatform != "")
 	}
 
@@ -164,6 +164,12 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 			derefGroupID(groupID), groupPlatform, requestedModel, shortSessionHash(sessionHash), stickyAccountID, cfg.LoadBatchEnabled, s.concurrencyService != nil)
 	}
 
+	// Scope is based on the resolved request group, never the shared account.
+	subscriptionPriority := s.isClaudeSubscriptionPriorityEnabled(ctx, groupID)
+	if !subscriptionPriority && (s.concurrencyService == nil || !cfg.LoadBatchEnabled) {
+		return s.selectGatewayAccountWithoutLoad(ctx, groupID, sessionHash, requestedModel, excludedIDs, stickyAccountID)
+	}
+
 	platform, hasForcePlatform, err := s.resolvePlatform(ctx, groupID, group, requestedModel)
 	if err != nil {
 		return nil, err
@@ -171,7 +177,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 
 	// The old degraded path resolved Composite aliases through the model-only
 	// selector. Preserve that model/context before entering either Claude pool.
-	if platform == PlatformAnthropic && !hasForcePlatform && group != nil && group.Platform == PlatformComposite {
+	if subscriptionPriority && platform == PlatformAnthropic && !hasForcePlatform && group != nil && group.Platform == PlatformComposite {
 		if _, resolved := ResolvedTargetPlatformFromContext(ctx); !resolved {
 			decision, ok, err := s.resolveCompositeRouteDecision(ctx, group, requestedModel, CompositeRouteEndpointAny)
 			if err != nil {
@@ -210,7 +216,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 		requestedModel: requestedModel, excludedIDs: excludedIDs,
 		platform: platform, useMixed: useMixed, stickyAccountID: stickyAccountID,
 	}
-	if platform == PlatformAnthropic {
+	if subscriptionPriority && platform == PlatformAnthropic {
 		return s.selectClaudeSubscriptionPool(ctx, request, accounts)
 	}
 	return s.selectGatewayAccountPool(ctx, request, accounts, false, true)

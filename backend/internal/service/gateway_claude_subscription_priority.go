@@ -17,6 +17,13 @@ type gatewayAccountPoolRequest struct {
 	stickyAccountID int64
 }
 
+// Default-off opt-in follows the final group after any Claude Code fallback.
+// Account membership is deliberately not used: the same account may serve groups
+// whose scheduling policies differ.
+func (s *GatewayService) isClaudeSubscriptionPriorityEnabled(ctx context.Context, groupID *int64) bool {
+	return groupID != nil && s.settingService != nil && s.settingService.IsClaudeSubscriptionPriorityEnabled(ctx, *groupID)
+}
+
 // Claude subscriptions use Anthropic OAuth or Setup Token credentials. API keys
 // and eligible mixed-platform accounts remain available in the fallback pool.
 func partitionClaudeSubscriptionAccounts(accounts []Account) ([]Account, []Account) {
